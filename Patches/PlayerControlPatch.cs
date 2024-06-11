@@ -138,7 +138,7 @@ class CheckMurderPatch
 
         Logger.Info($"Start: CustomRoleManager.OnCheckMurder", "CheckMurder");
 
-        if (CustomRoleManager.OnCheckMurder(killer, target) == false)
+        if (CustomRoleManager.OnCheckMurder(ref killer, ref target) == false)
         {
             Logger.Info($"Canceled from CustomRoleManager.OnCheckMurder", "CheckMurder");
             return false;
@@ -248,20 +248,6 @@ class CheckMurderPatch
         Logger.Info($"check: {check}", "RpcCheckAndMurder");
 
         if (target == null) target = killer;
-
-        Logger.Info($"Start", "Shaman.CheckMurder");
-
-        // Shaman replace target
-        if (Shaman.HasEnabled && Shaman.ShamanTarget != byte.MaxValue)
-        {
-            Logger.Info($"Real target before = {target.GetNameWithRole().RemoveHtmlTags()}", "Shaman.CheckMurder");
-
-            target = Shaman.ChangeTarget(target);
-
-            Logger.Info($"Real target after = {target.GetNameWithRole().RemoveHtmlTags()}", "Shaman.CheckMurder");
-        }
-
-        Logger.Info($"End", "Shaman.CheckMurder");
 
         var killerRole = killer.GetCustomRole();
 
@@ -486,6 +472,8 @@ class MurderPlayerPatch
         AfterPlayerDeathTasks(killer, target, false);
         Utils.TargetDies(__instance, target);
 
+        DestroyableSingleton<HudManager>.Instance.SetHudActive(true);
+
         if (Options.LowLoadMode.GetBool())
         {
             __instance.MarkDirtySettings();
@@ -680,7 +668,7 @@ class ReportDeadBodyPatch
             return false;
         }
 
-        Logger.Info($"{__instance.GetNameWithRole().RemoveHtmlTags()} => {target?.Object?.GetNameWithRole().RemoveHtmlTags() ?? "null"}", "ReportDeadBody");
+        Logger.Info($"{__instance.GetNameWithRole().RemoveHtmlTags()} => {target?.PlayerName ?? "null (Button Pressed)"}", "ReportDeadBody");
 
         foreach (var kvp in Main.PlayerStates)
         {
@@ -810,11 +798,13 @@ class ReportDeadBodyPatch
         Main.GuesserGuessed.Clear();
         Main.AllKillers.Clear();
 
-
+        Logger.Info($"target is null? - {target == null}", "AfterReportTasks");
+        Logger.Info($"target.Object is null? - {target?.Object == null}", "AfterReportTasks");
+        Logger.Info($"target.PlayerId is - {target?.PlayerId}", "AfterReportTasks");
 
         foreach (var playerStates in Main.PlayerStates.Values.ToArray())
         {
-            playerStates.RoleClass?.OnReportDeadBody(player, target?.Object);
+            playerStates.RoleClass?.OnReportDeadBody(player, target);
         }
 
         // Alchemist & Bloodlust
@@ -822,7 +812,7 @@ class ReportDeadBodyPatch
 
         if (Aware.IsEnable) Aware.OnReportDeadBody();
         
-        Sleuth.OnReportDeadBody(player, target?.Object);
+        Sleuth.OnReportDeadBody(player, target);
 
 
 
@@ -1031,6 +1021,13 @@ class FixedUpdateInNormalGamePatch
             {
                 CustomRoleManager.OnFixedUpdate(player);
 
+                if (Main.LateOutfits.TryGetValue(player.PlayerId, out var Method) && !player.CheckCamoflague())
+                {
+                    Method();
+                    Main.LateOutfits.Remove(player.PlayerId);
+                    Logger.Info($"Reset {player.GetRealName()}'s outfit", "LateOutfits..OnFixedUpdate");
+                }
+
                 if (player.Is(CustomRoles.Statue) && player.IsAlive())
                     Statue.OnFixedUpdate(player);
 
@@ -1138,11 +1135,24 @@ class FixedUpdateInNormalGamePatch
                 var seer = PlayerControl.LocalPlayer;
                 var seerRoleClass = seer.GetRoleClass();
                 var target = __instance;
+                var realTarget = target;
 
                 if (seer != target && seer != DollMaster.DollMasterTarget)
                     target = DollMaster.SwapPlayerInfo(target); // If a player is possessed by the Dollmaster swap each other's controllers.
 
                 string RealName = target.GetRealName();
+
+                if (seer != target && seer.IsAlive())
+                    target = Doppelganger.SwapPlayerInfoFromRom(target); // If player is victim to Doppelganger swap each other's controllers
+
+                // if Victim to Doppelganger or is Doppelganger
+                if (seer.Data.IsDead && Doppelganger.HasEnabled && Doppelganger.DoppelVictim.Count > 1)
+                {
+                    if (target.Is(CustomRoles.Doppelganger) && Doppelganger.TrueNames.ContainsKey(target.PlayerId))
+                        RealName = $"\n{RealName}\r\n<size=75%>{Utils.ColorString(Color.gray, $"({Doppelganger.TrueNames[target.PlayerId]})")}</size>";
+                    else if (Doppelganger.CheckDoppelVictim(target.PlayerId) && Doppelganger.TrueNames.ContainsKey(target.PlayerId))
+                        RealName = Doppelganger.TrueNames[target.PlayerId];
+                }
 
                 Mark.Clear();
                 Suffix.Clear();
@@ -1219,18 +1229,18 @@ class FixedUpdateInNormalGamePatch
                 string DeathReason = seer.Data.IsDead && seer.KnowDeathReason(target)
                     ? $" ({Utils.ColorString(Utils.GetRoleColor(CustomRoles.Doctor), Utils.GetVitalText(target.PlayerId))})" : string.Empty;
 
-                target.cosmetics.nameText.text = $"{RealName}{DeathReason}{Mark}";
+                realTarget.cosmetics.nameText.text = $"{RealName}{DeathReason}{Mark}";
 
                 if (Suffix.ToString() != "")
                 {
                     RoleText.transform.SetLocalY(0.35f);
-                    target.cosmetics.colorBlindText.transform.SetLocalY(-0.4f);
-                    target.cosmetics.nameText.text += "\r\n" + Suffix.ToString();
+                    realTarget.cosmetics.colorBlindText.transform.SetLocalY(-0.4f);
+                    realTarget.cosmetics.nameText.text += "\r\n" + Suffix.ToString();
                 }
                 else
                 {
                     RoleText.transform.SetLocalY(0.2f);
-                    target.cosmetics.colorBlindText.transform.SetLocalY(-0.2f);
+                    realTarget.cosmetics.colorBlindText.transform.SetLocalY(-0.2f);
                 }
             }
             else
@@ -1340,10 +1350,7 @@ class CoEnterVentPatch
             || (playerRoleClass != null && playerRoleClass.CheckBootFromVent(__instance, id))
         )
         {
-            _ = new LateTask(() =>
-            {
-                __instance.RpcBootFromVent(id);
-            }, 0.5f, "Fix Vent Stuck");
+            __instance?.RpcBootFromVent(id);
             return false;
         }
 

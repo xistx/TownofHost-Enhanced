@@ -56,6 +56,11 @@ internal class Vampire : RoleBase
     public override void Add(byte playerId)
     {
         playerIdList.Add(playerId);
+
+        if (NowActionMode == ActionMode.TriggerDouble)
+        {
+            Utils.GetPlayerById(playerId)?.AddDoubleTrigger();
+        }
     }
 
     public static bool CheckCanUseVent() => CanVent.GetBool();
@@ -141,7 +146,7 @@ internal class Vampire : RoleBase
         }
     }
 
-    public override void OnReportDeadBody(PlayerControl reporter, PlayerControl deadBody)
+    public override void OnReportDeadBody(PlayerControl reporter, GameData.PlayerInfo deadBody)
     {
         foreach (var targetId in BittenPlayers.Keys)
         {

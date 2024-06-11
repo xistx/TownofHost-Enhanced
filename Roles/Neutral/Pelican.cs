@@ -170,7 +170,7 @@ internal class Pelican : RoleBase
         Logger.Info($"{pc.GetRealName()} eat player => {target.GetRealName()}", "Pelican");
     }
 
-    public override void OnReportDeadBody(PlayerControl Nah_Id, PlayerControl win)
+    public override void OnReportDeadBody(PlayerControl Nah_Id, GameData.PlayerInfo win)
     {
         foreach (var pc in eatenList)
         {
@@ -257,11 +257,11 @@ internal class Pelican : RoleBase
         
         if (Count > 0) return; 
         
-        Count = 15;
+        Count = 2;
 
-        foreach (var pc in eatenList)
+        foreach (var pc in eatenList.Values)
         {
-            foreach (var tar in pc.Value.ToArray())
+            foreach (var tar in pc.ToArray())
             {
                 var target = Utils.GetPlayerById(tar);
                 if (target == null) continue;

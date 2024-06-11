@@ -1,6 +1,5 @@
 ﻿using Hazel;
 using TOHE.Modules;
-using TOHE.Roles.Core;
 using TOHE.Roles.Neutral;
 using UnityEngine;
 using static TOHE.Options;
@@ -156,7 +155,7 @@ internal class Lightning : RoleBase
             Utils.NotifyRoles();
         }
     }
-    public override void OnReportDeadBody(PlayerControl reporter, PlayerControl target)
+    public override void OnReportDeadBody(PlayerControl reporter, GameData.PlayerInfo target)
     {
         foreach (var ghost in GhostPlayer.ToArray())
         {

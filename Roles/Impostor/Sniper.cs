@@ -1,7 +1,6 @@
 using AmongUs.GameOptions;
 using Hazel;
 using TOHE.Modules;
-using TOHE.Roles.Core;
 using UnityEngine;
 using static TOHE.Translator;
 
@@ -304,7 +303,7 @@ internal class Sniper : RoleBase
             Utils.NotifyRoles(SpecifySeer: sniper);
         }
     }
-    public override void OnReportDeadBody(PlayerControl reporter, PlayerControl target)
+    public override void OnReportDeadBody(PlayerControl reporter, GameData.PlayerInfo target)
     {
         meetingReset = true;
     }
